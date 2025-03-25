@@ -1,13 +1,22 @@
 import pyglet
 import numpy as np
 from pyglet.gl import *
-
-WIDTH = 600
-HEIGHT = 600
+WIDTH = 800
+HEIGHT = 700
 DEFINITION = 100
-
 window = pyglet.window.Window(WIDTH,HEIGHT,"Tarea1")
 
+#Circle movements variables
+xCircle, yCircle = 0.0, 0.0
+xSpeed, ySpeed = 0.02, 0.015
+
+xImage, yImage = 0.0, 0.0
+xImageSpeed, yImageSpeed= 0.02, 0.015
+
+image = pyglet.image.load('Tarea1/cachorro.jpeg')
+image_width, image_height = image.width, image.height
+
+sprite = pyglet.sprite.Sprite(image)
 
 def create_circle(x, y, radius):
     # Discretizamos un circulo en DEFINITION pasos
@@ -20,11 +29,12 @@ def create_circle(x, y, radius):
     for i in range(DEFINITION):
         theta = i*dtheta
         positions[i*3:(i+1)*3] = [x + np.cos(theta)*radius, y + np.sin(theta)*radius, 0.0]
+        colors[i * 3:(i + 1) * 3] = [0.0, 1.0, 1.0]
 
     # Finalmente agregamos el centro
     positions[3*DEFINITION:] = [x, y, 0.0]
-
-    return positions
+    colors[3 * DEFINITION:] = [0.0, 1.0, 1.0]  # El centro también será celeste
+    return positions, colors
 
 def create_circle_indices():
     # Ahora calculamos los indices
@@ -64,6 +74,47 @@ void main()
     outColor = vec4(fragColor, 1.0f);
 }
     """
+    @window.event
+    def on_draw():
+
+        # Esta linea limpia la pantalla entre frames
+        window.clear()
+        glClearColor(0.6, 0.6, 0.6, 1)
+
+        # Acá dibujamos el círculo
+        pipeline.use()
+        circle_gpu.draw(GL_TRIANGLES)
+
+        # Dibujamos el perrito
+        sprite.draw()
+
+    def update(dt):
+        global xCircle, yCircle, xSpeed, ySpeed
+        global xImage, yImage, xImageSpeed, yImageSpeed
+
+        xCircle += xSpeed
+        yCircle += ySpeed
+
+        if xCircle - 0.2 <= -1 or xCircle + 0.2 >=1:
+            xSpeed=-xSpeed
+        if yCircle - 0.2 <= -1 or yCircle + 0.2 >=1:
+            ySpeed=-ySpeed
+
+        xImage += xImageSpeed
+        yImage += yImageSpeed
+
+        if xImage<= 0 or xImage>= 1:
+            xImageSpeed = -xImageSpeed
+        if yImage<= 0 or yImage>= 1:
+            yImageSpeed = -yImageSpeed
+
+        circle_pos, circle_color = create_circle(xCircle, yCircle, 0.2)
+        circle_gpu.position[:]=circle_pos
+        circle_gpu.color[:]=circle_color
+
+        sprite.x = xImage * (WIDTH- image_width)
+        sprite.y = yImage*(HEIGHT - image_height)
+
 
     # Compilamos los shaders
     vert_program = pyglet.graphics.shader.Shader(vertex_source, "vertex")
@@ -73,7 +124,7 @@ void main()
     pipeline = pyglet.graphics.shader.ShaderProgram(vert_program, frag_program)
 
     # Creamos el circulo
-    circle_pos = create_circle(-0.2, 0.0, 0.5)
+    circle_pos, circle_color = create_circle(-0.2, 0.0, 0.2)
 
     # Creamos el circulo en la gpu, ahora con menos vertices en total
     # y le tenemos que pasar los indices
@@ -81,16 +132,9 @@ void main()
 
     # Copiamos los datos, añadimos el color
     circle_gpu.position[:] = circle_pos
-
-    @window.event
-    def on_draw():
-
-        # Esta linea limpia la pantalla entre frames
-        window.clear()
-        glClearColor(0.9, 0.9, 0.9, 1)
-
-        pipeline.use()
-        circle_gpu.draw(GL_TRIANGLES)
-
+    circle_gpu.color[:]=circle_color
     
+    pyglet.clock.schedule_interval(update, 1/60.0)
+
+
     pyglet.app.run()
